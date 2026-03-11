@@ -13,11 +13,17 @@ app = FastAPI(title="CloudStore")
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).parent.resolve()
-SECRET_KEY = "cloudstore-super-secret-key-change-in-prod"
+SECRET_KEY = os.environ.get("SECRET_KEY", "cloudstore-super-secret-key-change-in-prod")
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_MINUTES = 60 * 24
-UPLOAD_ROOT = BASE_DIR / "uploads"
-UPLOAD_ROOT.mkdir(exist_ok=True)
+
+# On Railway: set UPLOAD_ROOT=/data in env vars → uses persistent volume
+# Locally: falls back to ./uploads
+UPLOAD_ROOT = Path(os.environ.get("UPLOAD_ROOT", str(BASE_DIR / "uploads")))
+UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
+
+# users.json and shares.json also live in the persistent volume on Railway
+DATA_DIR = UPLOAD_ROOT.parent
 
 # ── Auth ────────────────────────────────────────────────────────────────────────
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
@@ -26,7 +32,7 @@ def verify_password(plain, hashed): return _bcrypt.checkpw(plain.encode(), hashe
 def hash_password(password): return _bcrypt.hashpw(password.encode(), _bcrypt.gensalt()).decode()
 
 # Simple file-based user store
-USERS_FILE = BASE_DIR / "users.json"
+USERS_FILE = DATA_DIR / "users.json"
 
 def load_users():
     if USERS_FILE.exists():
@@ -62,7 +68,7 @@ def user_root(username: str) -> Path:
     return p
 
 # ── Share links ─────────────────────────────────────────────────────────────────
-SHARES_FILE = BASE_DIR / "shares.json"
+SHARES_FILE = DATA_DIR / "shares.json"
 
 def load_shares():
     if SHARES_FILE.exists():
@@ -102,7 +108,6 @@ async def list_files(path: str = "", username: str = Depends(require_user)):
         raise HTTPException(status_code=403)
     if not target.exists():
         raise HTTPException(status_code=404)
-
     items = []
     for item in sorted(target.iterdir(), key=lambda x: (x.is_file(), x.name.lower())):
         rel = str(item.relative_to(root))
@@ -124,7 +129,6 @@ async def upload(path: str = Form(""), files: list[UploadFile] = File(...), user
     if not str(target_dir).startswith(str(root)):
         raise HTTPException(status_code=403)
     target_dir.mkdir(parents=True, exist_ok=True)
-
     uploaded = []
     for file in files:
         dest = target_dir / file.filename
@@ -225,6 +229,6 @@ async def stats(username: str = Depends(require_user)):
 # ── Serve Frontend ───────────────────────────────────────────────────────────────
 @app.get("/", response_class=HTMLResponse)
 async def root():
-  return (BASE_DIR / "static" / "index.html").read_text(encoding="utf-8")
+    return (BASE_DIR / "static" / "index.html").read_text(encoding="utf-8")
 
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
