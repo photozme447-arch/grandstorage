@@ -231,4 +231,4 @@ async def stats(username: str = Depends(require_user)):
 async def root():
     return (BASE_DIR / "static" / "index.html").read_text(encoding="utf-8")
 
-app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static") 
