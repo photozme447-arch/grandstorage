@@ -13,7 +13,7 @@ app = FastAPI(title="CloudStore")
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).parent.resolve()
-SECRET_KEY = os.environ.get("SECRET_KEY", "cloudstore-super-secret-key-change-in-prod")
+SECRET_KEY = "533289"
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_MINUTES = 60 * 24
 
